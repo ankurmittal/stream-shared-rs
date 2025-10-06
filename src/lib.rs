@@ -1,4 +1,8 @@
-//! A library for creating shareable streams that can be cloned and consumed by multiple tasks.\n//!\n//! [`SharedStream`] wraps any [`Stream`] to make it cloneable. All clones share the same\n//! underlying stream state, so clones created at the same time will see the same items,\n//! while clones created after partial consumption will only see the remaining items.
+//! A library for creating shareable streams that can be cloned and consumed by multiple tasks.
+//!
+//! [`SharedStream`] wraps any [`Stream`] to make it cloneable. All clones share the same underlying
+//! stream state, so clones created at the same time will see the same items, while clones created
+//! after partial consumption will only see the remaining items.
 //!
 //! # Examples
 //!
@@ -56,20 +60,18 @@
 //! # tokio_test::block_on(async {
 //! let data = vec![1, 2, 3, 4, 5];
 //! let stream = stream::iter(data.clone());
-//! let shared_stream = Arc::new(SharedStream::new(stream));
+//! let shared_stream = SharedStream::new(stream);
 //!
 //! // Clone and move to different threads
-//! let stream1 = Arc::clone(&shared_stream);
-//! let stream2 = Arc::clone(&shared_stream);
+//! let stream1 = shared_stream.clone();
+//! let stream2 = shared_stream.clone();
 //!
 //! let handle1 = task::spawn(async move {
-//!     let cloned_stream = (*stream1).clone();
-//!     cloned_stream.collect::<Vec<i32>>().await
+//!     stream1.collect::<Vec<i32>>().await
 //! });
 //!
 //! let handle2 = task::spawn(async move {
-//!     let cloned_stream = (*stream2).clone();
-//!     cloned_stream.collect::<Vec<i32>>().await
+//!     stream2.collect::<Vec<i32>>().await
 //! });
 //!
 //! let (result1, result2) = tokio::join!(handle1, handle2);
