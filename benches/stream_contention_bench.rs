@@ -43,7 +43,7 @@ fn benchmark_group(c: &mut Criterion) {
     let mut contention_group = c.benchmark_group("Contention (N=5)");
 
     contention_group.measurement_time(Duration::from_secs(10));
-    contention_group.sample_size(10);
+    contention_group.sample_size(50);
 
     for &count in item_counts.iter() {
         // --- SharedStream (Contended Synchronization) ---
@@ -97,7 +97,7 @@ fn benchmark_group(c: &mut Criterion) {
     // --- 2. Wrapper Overhead Benchmarks (Single Consumer N=1) ---
     let mut overhead_group = c.benchmark_group("Wrapper Overhead (N=1)");
     overhead_group.measurement_time(Duration::from_secs(10));
-    overhead_group.sample_size(10);
+    overhead_group.sample_size(50);
 
     for &count in item_counts.iter() {
         // A. Raw Stream Consumption (Baseline, MEM)
