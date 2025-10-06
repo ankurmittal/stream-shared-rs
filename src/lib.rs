@@ -139,7 +139,7 @@ where
             Poll::Pending => Poll::Pending,
             Poll::Ready((Some(item), stream)) => {
                 let next_shared_future = InnerFuture::new(stream).shared();
-
+                self.inner.take();
                 Poll::Ready(Some((item, next_shared_future)))
             }
             Poll::Ready((None, _stream)) => {
@@ -271,7 +271,7 @@ where
 {
     // The current shared future which holds the state of the stream.
     // We use a Shared<InnerFuture<S>> to manage the sharing.
-    future: Shared<InnerFuture<S>>,
+    future: Option<Shared<InnerFuture<S>>>,
 }
 
 impl<S> Clone for SharedStream<S>
@@ -313,7 +313,7 @@ where
     /// This method does not panic under normal circumstances.
     pub fn new(stream: S) -> Self {
         SharedStream {
-            future: InnerFuture::new(stream).shared(),
+            future: InnerFuture::new(stream).shared().into(),
         }
     }
 }
@@ -326,17 +326,22 @@ where
     type Item = S::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut cloned_future = self.future.clone();
-        let poll_result = Pin::new(&mut cloned_future).poll(cx);
+        let poll_result = match &mut self.future {
+            Some(f) => Pin::new(f).poll(cx),
+            None => return Poll::Ready(None),
+        };
 
         match poll_result {
             Poll::Pending => Poll::Pending,
             Poll::Ready(Some((item, next_shared_future))) => {
                 // Replace the future with the new shared version.
-                self.future = next_shared_future;
+                self.future = next_shared_future.into();
                 Poll::Ready(Some(item))
             }
-            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(None) => {
+                self.future.take();
+                Poll::Ready(None)
+            }
         }
     }
 }
