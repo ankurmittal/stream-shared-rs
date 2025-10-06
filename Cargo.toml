@@ -6,6 +6,7 @@ authors = ["Ankur Mittal"]
 license = "MIT"
 description = "A library for creating shareable streams that can be cloned and consumed by multiple consumers"
 readme = "README.md"
+repository = "https://github.com/ankurmittal/stream-shared-rs"
 keywords = ["stream", "async", "clone", "shared"]
 categories = ["asynchronous", "data-structures"]
 exclude = ["target/", ".git/", ".gitignore"]
