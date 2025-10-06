@@ -1,0 +1,25 @@
+[package]
+name = "stream_shared"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ankur Mittal"]
+license = "MIT"
+description = "A library for creating shareable streams that can be cloned and consumed by multiple consumers"
+readme = "README.md"
+keywords = ["stream", "async", "clone", "shared"]
+categories = ["asynchronous", "data-structures"]
+exclude = ["target/", ".git/", ".gitignore"]
+
+[dependencies]
+futures-util = "0.3.31"
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["rt", "macros", "rt-multi-thread"] }
+tokio-test = "0.4"
+static_assertions = "1.1"
+criterion = { version = "0.5", features = ["async", "tokio"] }
+tokio-stream = "0.1"
+
+[[bench]]
+name = "stream_contention_bench"
+harness = false
