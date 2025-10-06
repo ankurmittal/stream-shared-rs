@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/stream_shared.svg)](https://crates.io/crates/stream_shared)
 [![Documentation](https://docs.rs/stream_shared/badge.svg)](https://docs.rs/stream_shared)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 A Rust library for creating shareable streams that can be cloned and consumed by multiple tasks.
 
@@ -82,4 +82,4 @@ async fn main() {
 
 ## License
 
-Licensed under the MIT license.
+Licensed under the Apache License, Version 2.0.
