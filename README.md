@@ -1,5 +1,9 @@
 # stream_shared
 
+[![Crates.io](https://img.shields.io/crates/v/stream_shared.svg)](https://crates.io/crates/stream_shared)
+[![Documentation](https://docs.rs/stream_shared/badge.svg)](https://docs.rs/stream_shared)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Rust library for creating shareable streams that can be cloned and consumed by multiple tasks.
 
 ## Overview
