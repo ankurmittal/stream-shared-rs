@@ -1,9 +1,9 @@
+use futures::channel::mpsc;
+use futures::SinkExt;
 use futures_util::stream::{Stream, StreamExt};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 
 // --- Data Types and Constants ---
 
@@ -17,23 +17,21 @@ pub const NUM_CONSUMERS: usize = 5;
 
 // --- Channel Fan-Out Implementation ---
 
-pub fn run_channel_fan_out<S>(
-    mut original_stream: S,
-) -> Vec<tokio_stream::wrappers::ReceiverStream<ArcData>>
+pub fn run_channel_fan_out<S>(mut original_stream: S) -> Vec<mpsc::UnboundedReceiver<ArcData>>
 where
     S: Stream<Item = ArcData> + Unpin + Send + 'static,
 {
     let mut txs = Vec::new();
     let mut rx_streams = Vec::new();
     for _ in 0..NUM_CONSUMERS {
-        let (tx, rx) = mpsc::channel(1024); // Buffered channel
+        let (tx, rx) = mpsc::unbounded(); // Buffered channel
         txs.push(tx);
-        rx_streams.push(ReceiverStream::new(rx));
+        rx_streams.push(rx);
     }
 
     tokio::spawn(async move {
         while let Some(item) = original_stream.next().await {
-            for tx in &txs {
+            for tx in &mut txs {
                 let _ = tx.send(item.clone()).await;
             }
         }
