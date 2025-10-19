@@ -98,6 +98,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+type SizeHint = (usize, Option<usize>);
+
 /// Internal future wrapper that enables sharing of stream state.
 ///
 /// This type wraps a [`StreamFuture`] and implements the logic for creating
@@ -127,7 +129,7 @@ where
     S::Item: Clone,
 {
     // The output type is changed to reflect the attempt to return a shared future.
-    type Output = Option<(S::Item, Shared<Self>)>;
+    type Output = Option<(S::Item, Shared<Self>, SizeHint)>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let inner_future = match self.inner.as_mut() {
@@ -138,9 +140,10 @@ where
         match inner_future.poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready((Some(item), stream)) => {
+                let size_hint = stream.size_hint();
                 let next_shared_future = InnerFuture::new(stream).shared();
                 self.inner.take();
-                Poll::Ready(Some((item, next_shared_future)))
+                Poll::Ready(Some((item, next_shared_future, size_hint)))
             }
             Poll::Ready((None, _stream)) => {
                 self.inner.take();
@@ -272,6 +275,7 @@ where
     // The current shared future which holds the state of the stream.
     // We use a Shared<InnerFuture<S>> to manage the sharing.
     future: Option<Shared<InnerFuture<S>>>,
+    size_hint: SizeHint,
 }
 
 impl<S> Clone for SharedStream<S>
@@ -282,6 +286,7 @@ where
     fn clone(&self) -> Self {
         Self {
             future: self.future.clone(),
+            size_hint: self.size_hint,
         }
     }
 }
@@ -312,8 +317,10 @@ where
     ///
     /// This method does not panic under normal circumstances.
     pub fn new(stream: S) -> Self {
+        let size_hint = stream.size_hint();
         SharedStream {
             future: InnerFuture::new(stream).shared().into(),
+            size_hint,
         }
     }
 }
@@ -333,9 +340,10 @@ where
 
         match poll_result {
             Poll::Pending => Poll::Pending,
-            Poll::Ready(Some((item, next_shared_future))) => {
+            Poll::Ready(Some((item, next_shared_future, size_hint))) => {
                 // Replace the future with the new shared version.
                 self.future = next_shared_future.into();
+                self.size_hint = size_hint;
                 Poll::Ready(Some(item))
             }
             Poll::Ready(None) => {
@@ -343,6 +351,10 @@ where
                 Poll::Ready(None)
             }
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.size_hint
     }
 }
 
@@ -357,8 +369,10 @@ mod tests {
         let stream = stream::iter(original_data.clone());
 
         let shared_stream = SharedStream::new(stream);
-        let collected: Vec<i32> = shared_stream.collect().await;
 
+        assert_eq!(shared_stream.size_hint(), (5, Some(5)));
+
+        let collected: Vec<i32> = shared_stream.collect().await;
         assert_eq!(collected, original_data);
     }
 
@@ -372,6 +386,10 @@ mod tests {
         let clone1 = shared_stream.clone();
         let clone2 = shared_stream.clone();
         let clone3 = shared_stream.clone();
+
+        assert_eq!(clone1.size_hint(), (3, Some(3)));
+        assert_eq!(clone2.size_hint(), (3, Some(3)));
+        assert_eq!(clone3.size_hint(), (3, Some(3)));
 
         // Run all clones at the same time to make sure they don't interfere
         let (result1, result2, result3) = tokio::join!(
@@ -388,16 +406,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_clone_after_partial_consumption() {
+        use futures_util::StreamExt;
+
         let numbers = vec![100, 200, 300, 400];
         let stream = stream::iter(numbers.clone());
         let mut shared_stream = SharedStream::new(stream);
+
+        // Initial size hint should be 4
+        assert_eq!(shared_stream.size_hint(), (4, Some(4)));
 
         // Take one item first
         let first_item = shared_stream.next().await;
         assert_eq!(first_item, Some(100));
 
+        assert_eq!(shared_stream.size_hint(), (3, Some(3)));
+
         // Now make a clone and see what it gets
         let cloned_stream = shared_stream.clone();
+
+        assert_eq!(cloned_stream.size_hint(), (3, Some(3)));
+
         let clone_result: Vec<i32> = cloned_stream.collect().await;
 
         // The clone gets what's left from the current position, not everything
@@ -429,8 +457,13 @@ mod tests {
         let empty_stream = stream::iter(Vec::<i32>::new());
         let shared_stream = SharedStream::new(empty_stream);
 
+        assert_eq!(shared_stream.size_hint(), (0, Some(0)));
+
         let clone1 = shared_stream.clone();
         let clone2 = shared_stream.clone();
+
+        assert_eq!(clone1.size_hint(), (0, Some(0)));
+        assert_eq!(clone2.size_hint(), (0, Some(0)));
 
         let (result1, result2) =
             tokio::join!(clone1.collect::<Vec<i32>>(), clone2.collect::<Vec<i32>>());
@@ -441,19 +474,35 @@ mod tests {
 
     #[tokio::test]
     async fn test_single_item_stream() {
+        use futures_util::StreamExt;
+
         // Another edge case: streams with just one item
         let single_item = vec![42];
         let stream = stream::iter(single_item.clone());
-        let shared_stream = SharedStream::new(stream);
+        let mut shared_stream = SharedStream::new(stream);
+
+        assert_eq!(shared_stream.size_hint(), (1, Some(1)));
 
         let clone1 = shared_stream.clone();
         let clone2 = shared_stream.clone();
+
+        assert_eq!(clone1.size_hint(), (1, Some(1)));
+        assert_eq!(clone2.size_hint(), (1, Some(1)));
 
         let (result1, result2) =
             tokio::join!(clone1.collect::<Vec<i32>>(), clone2.collect::<Vec<i32>>());
 
         assert_eq!(result1, single_item);
         assert_eq!(result2, single_item);
+
+        let item = shared_stream.next().await;
+        assert_eq!(item, Some(42));
+
+        assert_eq!(shared_stream.size_hint(), (0, Some(0)));
+
+        // Verify stream is exhausted
+        let remaining: Vec<i32> = shared_stream.collect().await;
+        assert!(remaining.is_empty());
     }
 
     #[tokio::test]
