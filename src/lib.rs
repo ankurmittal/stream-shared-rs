@@ -48,6 +48,11 @@
 //!
 //! For example, with a stream containing 20 items:
 //! ```
+//! use stream_shared::SharedStream;
+//! use futures_util::stream;
+//!
+//! let data = (1..=20).collect::<Vec<i32>>();
+//! let stream_with_20_items = stream::iter(data);
 //! let original = SharedStream::new(stream_with_20_items);
 //! // ... consume 10 items from original ...
 //! let clone1 = original.clone();  // clone1 will have 10 remaining items
@@ -107,6 +112,11 @@
 //! - Minimize the number of concurrent clones when possible
 //! - Prefer small, cheap-to-clone items (consider `Arc<T>` for large data)
 //!
+
+mod ext;
+
+pub use ext::SharedStreamExt;
+
 use futures_util::future::{FutureExt, Shared};
 use futures_util::stream::{Stream, StreamExt, StreamFuture};
 use std::future::Future;

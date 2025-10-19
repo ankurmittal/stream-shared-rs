@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures_util::{future::join_all, stream::StreamExt};
 use std::time::Duration;
-use stream_shared::SharedStream;
+use stream_shared::{SharedStream, SharedStreamExt};
 use tokio::runtime::Runtime;
 
 mod utils;
@@ -51,7 +51,7 @@ fn benchmark_group(c: &mut Criterion) {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_in_memory_stream(count);
-                    let shared_stream = SharedStream::new(stream);
+                    let shared_stream = stream.into_shared();
                     let consumers: Vec<_> =
                         (0..NUM_CONSUMERS).map(|_| shared_stream.clone()).collect();
                     consume_streams(consumers).await;
