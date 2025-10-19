@@ -39,10 +39,25 @@
 //! # Behavior
 //!
 //! When you clone a [`SharedStream`], the clone will start from the current position
-//! of the original stream, not from the beginning. This means:
+//! of the stream being cloned, not from the beginning of the original data. Each
+//! `SharedStream` maintains its own independent position. This means:
 //!
-//! - Clones created at the same time will see the same items
-//! - Clones created after some consumption will only see remaining items
+//! - Clones created from the same stream at the same time will see the same items
+//! - Clones created after consumption will only see items remaining from that stream's position
+//! - Each clone can be consumed independently and can itself be cloned from its current position
+//!
+//! For example, with a stream containing 20 items:
+//! ```
+//! let original = SharedStream::new(stream_with_20_items);
+//! // ... consume 10 items from original ...
+//! let clone1 = original.clone();  // clone1 will have 10 remaining items
+//!
+//! // ... consume 2 items from clone1 ...  
+//! let clone2 = clone1.clone();    // clone2 will have 8 remaining items
+//!
+//! // Each stream maintains its own position independently
+//! let clone3 = original.clone();  // clone3 will have 10 remaining items
+//! ```
 //!
 //! # Thread Safety
 //!
