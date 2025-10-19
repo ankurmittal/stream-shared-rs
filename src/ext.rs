@@ -53,7 +53,7 @@ mod tests {
         let data = vec![1, 2, 3];
         let stream = stream::iter(data.clone());
 
-        let shared_stream = stream.into_shared();
+        let shared_stream: SharedStream<_> = stream.into_shared();
         let result: Vec<i32> = shared_stream.collect().await;
 
         assert_eq!(result, data);
