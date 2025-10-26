@@ -118,7 +118,7 @@ mod ext;
 pub use ext::SharedStreamExt;
 
 use futures_util::future::{FutureExt, Shared};
-use futures_util::stream::{Stream, StreamExt, StreamFuture};
+use futures_util::stream::{FusedStream, Stream, StreamExt, StreamFuture};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -381,6 +381,16 @@ where
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.size_hint
+    }
+}
+
+impl<S> FusedStream for SharedStream<S>
+where
+    S: Stream + Unpin,
+    S::Item: Clone,
+{
+    fn is_terminated(&self) -> bool {
+        self.future.is_none()
     }
 }
 
@@ -651,31 +661,49 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_after_stream_exhausted() {
+        use futures_util::stream::FusedStream;
         use futures_util::StreamExt;
 
         let data = vec![1, 2, 3];
         let stream = stream::iter(data.clone());
         let mut shared_stream = SharedStream::new(stream);
 
+        // Initially, the stream should not be terminated
+        assert!(!shared_stream.is_terminated());
+
         // Consume all items from the stream
         let mut collected = Vec::new();
         while let Some(item) = shared_stream.next().await {
             collected.push(item);
+            // While consuming, stream should not be terminated yet
+            if collected.len() < data.len() {
+                assert!(!shared_stream.is_terminated());
+            }
         }
         assert_eq!(collected, data);
+
+        // After exhaustion, the stream should be terminated
+        assert!(shared_stream.is_terminated());
 
         // Now call next() again - should return None
         let result = shared_stream.next().await;
         assert_eq!(result, None);
+        assert!(shared_stream.is_terminated());
 
         // And again to make sure it's consistently None
         let result2 = shared_stream.next().await;
         assert_eq!(result2, None);
+        assert!(shared_stream.is_terminated());
 
         // Test with a cloned stream as well
         let mut cloned_stream = shared_stream.clone();
+
+        // Cloned stream from exhausted stream should also be terminated
+        assert!(cloned_stream.is_terminated());
+
         let result3 = cloned_stream.next().await;
         assert_eq!(result3, None);
+        assert!(cloned_stream.is_terminated());
     }
 
     #[tokio::test]
