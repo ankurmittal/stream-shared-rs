@@ -129,7 +129,8 @@ type SizeHint = (usize, Option<usize>);
 ///
 /// This type wraps a [`StreamFuture`] and implements the logic for creating
 /// shared versions of subsequent futures as the stream is consumed.
-struct InnerFuture<S>
+#[cfg_attr(test, derive(Debug))]
+pub(crate) struct InnerFuture<S>
 where
     S: Stream + Unpin,
 {
@@ -141,7 +142,7 @@ where
     S: Stream + Unpin,
 {
     /// Creates a new `InnerFuture` from the given stream.
-    pub fn new(stream: S) -> Self {
+    pub(crate) fn new(stream: S) -> Self {
         InnerFuture {
             inner: Some(stream.into_future()),
         }
@@ -675,5 +676,95 @@ mod tests {
         let mut cloned_stream = shared_stream.clone();
         let result3 = cloned_stream.next().await;
         assert_eq!(result3, None);
+    }
+
+    #[tokio::test]
+    async fn test_pending_future_behavior() {
+        use futures_util::StreamExt;
+        use std::pin::Pin;
+        use std::sync::{Arc, Mutex};
+        use std::task::{Context, Poll, Waker};
+
+        // Create a custom stream that returns Pending once, then Ready
+        #[derive(Clone)]
+        struct PendingOnceStream {
+            data: Vec<i32>,
+            index: usize,
+            has_returned_pending: Arc<Mutex<bool>>,
+            stored_waker: Arc<Mutex<Option<Waker>>>,
+        }
+
+        impl Stream for PendingOnceStream {
+            type Item = i32;
+
+            fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+                let this = self.get_mut();
+                let mut has_returned_pending = this.has_returned_pending.lock().unwrap();
+
+                // Return Pending exactly once to test the Pending code path
+                if !*has_returned_pending {
+                    *has_returned_pending = true;
+                    *this.stored_waker.lock().unwrap() = Some(cx.waker().clone());
+
+                    // Immediately wake the waker to continue execution
+                    let waker = cx.waker().clone();
+                    waker.wake();
+
+                    return Poll::Pending;
+                }
+
+                // After returning Pending once, behave normally
+                if this.index < this.data.len() {
+                    let item = this.data[this.index];
+                    this.index += 1;
+                    Poll::Ready(Some(item))
+                } else {
+                    Poll::Ready(None)
+                }
+            }
+        }
+
+        let has_returned_pending = Arc::new(Mutex::new(false));
+        let stored_waker = Arc::new(Mutex::new(None));
+
+        let pending_stream = PendingOnceStream {
+            data: vec![100, 200],
+            index: 0,
+            has_returned_pending: Arc::clone(&has_returned_pending),
+            stored_waker: Arc::clone(&stored_waker),
+        };
+
+        let shared_stream = SharedStream::new(pending_stream);
+
+        // This should succeed and exercise the Pending code path
+        let result = shared_stream.collect::<Vec<i32>>().await;
+        assert_eq!(result, vec![100, 200]);
+
+        // Verify that Pending was actually returned once
+        assert!(*has_returned_pending.lock().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_inner_future_direct_poll() {
+        use futures_util::stream;
+        use std::future::Future;
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+
+        // Test InnerFuture directly to hit the edge case where inner is None
+        let stream = stream::iter(vec![42]);
+        let mut inner_future = InnerFuture::new(stream);
+
+        // Create a dummy waker for polling
+        let waker = futures_util::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        // First poll should return the item
+        let result = Pin::new(&mut inner_future).poll(&mut cx);
+        assert!(matches!(result, Poll::Ready(Some((42, _, _)))));
+
+        // Poll again - this should hit the None case and return Poll::Ready(None)
+        let result = Pin::new(&mut inner_future).poll(&mut cx);
+        assert!(matches!(result, Poll::Ready(None)));
     }
 }
