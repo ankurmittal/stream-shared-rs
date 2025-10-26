@@ -647,4 +647,33 @@ mod tests {
         assert_eq!(result1.unwrap(), data);
         assert_eq!(result2.unwrap(), data);
     }
+
+    #[tokio::test]
+    async fn test_next_after_stream_exhausted() {
+        use futures_util::StreamExt;
+
+        let data = vec![1, 2, 3];
+        let stream = stream::iter(data.clone());
+        let mut shared_stream = SharedStream::new(stream);
+
+        // Consume all items from the stream
+        let mut collected = Vec::new();
+        while let Some(item) = shared_stream.next().await {
+            collected.push(item);
+        }
+        assert_eq!(collected, data);
+
+        // Now call next() again - should return None
+        let result = shared_stream.next().await;
+        assert_eq!(result, None);
+
+        // And again to make sure it's consistently None
+        let result2 = shared_stream.next().await;
+        assert_eq!(result2, None);
+
+        // Test with a cloned stream as well
+        let mut cloned_stream = shared_stream.clone();
+        let result3 = cloned_stream.next().await;
+        assert_eq!(result3, None);
+    }
 }

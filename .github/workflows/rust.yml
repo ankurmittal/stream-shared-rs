@@ -28,10 +28,27 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+    - name: Cache tarpaulin
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/cargo-tarpaulin
+        key: ${{ runner.os }}-tarpaulin-${{ env.TARPAULIN_VERSION }}
+        restore-keys: |
+          ${{ runner.os }}-tarpaulin-
+      env:
+        TARPAULIN_VERSION: '0.27.1'
     - name: Install tarpaulin
-      run: cargo install cargo-tarpaulin
+      run: |
+        if ! command -v cargo-tarpaulin &> /dev/null; then
+          echo "Installing cargo-tarpaulin..."
+          cargo install cargo-tarpaulin --version ${{ env.TARPAULIN_VERSION }}
+        else
+          echo "cargo-tarpaulin already installed"
+        fi
+      env:
+        TARPAULIN_VERSION: '0.27.1'
     - name: Generate code coverage
-      run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml --output-dir ./coverage/
+      run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml --output-dir ./coverage/ --exclude-files 'benches/*'
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v4
       with:
