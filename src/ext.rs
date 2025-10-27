@@ -3,7 +3,7 @@
 //! This module provides the `SharedStreamExt` trait which adds an `into_shared` method
 //! to any type that implements `Stream + Unpin` with clonable items.
 
-use crate::SharedStream;
+use crate::shared_stream::SharedStream;
 use futures_util::stream::Stream;
 
 /// Extension trait for [`Stream`] that provides the `into_shared` method.
