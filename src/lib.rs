@@ -118,3 +118,6 @@ mod shared_stream;
 
 pub use ext::SharedStreamExt;
 pub use shared_stream::SharedStream;
+
+#[cfg(doc)]
+use futures_util::Stream;
