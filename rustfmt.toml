@@ -1,0 +1,2 @@
+# Rust 2021 Edition formatting configuration
+edition = "2021"
