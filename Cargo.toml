@@ -12,6 +12,9 @@ keywords = ["stream", "async", "clone", "shared"]
 categories = ["asynchronous", "data-structures"]
 exclude = ["target/", ".git/", ".gitignore"]
 
+[lints.rust]
+warnings = "deny"
+
 [dependencies]
 futures-util = "0.3.31"
 

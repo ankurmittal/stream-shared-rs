@@ -4,6 +4,7 @@
 [![Documentation](https://docs.rs/stream_shared/badge.svg)](https://docs.rs/stream_shared)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![codecov](https://codecov.io/gh/ankurmittal/stream-shared-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/ankurmittal/stream-shared-rs)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ankurmittal/stream-shared-rs)
 
 A Rust library for creating shareable streams that can be cloned and consumed by multiple tasks.
 

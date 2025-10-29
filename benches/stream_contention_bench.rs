@@ -47,7 +47,7 @@ fn benchmark_group(c: &mut Criterion) {
 
     for &count in item_counts.iter() {
         // --- SharedStream (Contended Synchronization) ---
-        contention_group.bench_function(&format!("SharedStream_MEM__{}", count), |b| {
+        contention_group.bench_function(format!("SharedStream_MEM__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_in_memory_stream(count);
@@ -59,7 +59,7 @@ fn benchmark_group(c: &mut Criterion) {
             })
         });
 
-        contention_group.bench_function(&format!("SharedStream_IO__{}", count), |b| {
+        contention_group.bench_function(format!("SharedStream_IO__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_simulated_io_stream(count);
@@ -72,7 +72,7 @@ fn benchmark_group(c: &mut Criterion) {
         });
 
         // --- Channel Fan-Out (Centralized I/O) ---
-        contention_group.bench_function(&format!("ChannelFanOut_MEM__{}", count), |b| {
+        contention_group.bench_function(format!("ChannelFanOut_MEM__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_in_memory_stream(count);
@@ -82,7 +82,7 @@ fn benchmark_group(c: &mut Criterion) {
             })
         });
 
-        contention_group.bench_function(&format!("ChannelFanOut_IO__{}", count), |b| {
+        contention_group.bench_function(format!("ChannelFanOut_IO__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_simulated_io_stream(count);
@@ -101,7 +101,7 @@ fn benchmark_group(c: &mut Criterion) {
 
     for &count in item_counts.iter() {
         // A. Raw Stream Consumption (Baseline, MEM)
-        overhead_group.bench_function(&format!("RawStream_MEM__{}", count), |b| {
+        overhead_group.bench_function(format!("RawStream_MEM__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_in_memory_stream(count);
@@ -111,7 +111,7 @@ fn benchmark_group(c: &mut Criterion) {
         });
 
         // B. Shared Wrapper Consumption (Wrapper Overhead, MEM)
-        overhead_group.bench_function(&format!("SharedWrapper_MEM__{}", count), |b| {
+        overhead_group.bench_function(format!("SharedWrapper_MEM__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_in_memory_stream(count);
@@ -123,7 +123,7 @@ fn benchmark_group(c: &mut Criterion) {
         });
 
         // C. Raw Stream IO Consumption (Baseline, IO)
-        overhead_group.bench_function(&format!("RawStream_IO__{}", count), |b| {
+        overhead_group.bench_function(format!("RawStream_IO__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_simulated_io_stream(count);
@@ -133,7 +133,7 @@ fn benchmark_group(c: &mut Criterion) {
         });
 
         // D. Shared Wrapper IO Consumption (Wrapper Overhead, IO)
-        overhead_group.bench_function(&format!("SharedWrapper_IO__{}", count), |b| {
+        overhead_group.bench_function(format!("SharedWrapper_IO__{}", count), |b| {
             b.iter(|| {
                 rt.block_on(async {
                     let stream = generate_simulated_io_stream(count);
