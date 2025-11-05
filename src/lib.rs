@@ -113,11 +113,21 @@
 //! - Prefer small, cheap-to-clone items (consider `Arc<T>` for large data)
 //!
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 mod ext;
 mod shared_stream;
 
 pub use ext::SharedStreamExt;
 pub use shared_stream::SharedStream;
+
+// Mark the `stats` module with doc(cfg) so documentation can show that the
+// items are behind the optional `stats` feature. `docs.rs` sets the `docsrs`
+// cfg automatically; for local `cargo doc` builds you can set
+// `RUSTDOCFLAGS="--cfg docsrs"` when generating docs.
+#[cfg_attr(docsrs, doc(cfg(feature = "stats")))]
+#[cfg(feature = "stats")]
+pub mod stats;
 
 #[cfg(doc)]
 use futures_util::Stream;

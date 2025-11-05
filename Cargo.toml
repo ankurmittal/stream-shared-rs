@@ -12,6 +12,14 @@ keywords = ["stream", "async", "clone", "shared"]
 categories = ["asynchronous", "data-structures"]
 exclude = ["target/", ".git/", ".gitignore"]
 
+[features]
+# Optional runtime stats (active clone counts). Disabled by default.
+stats = []
+default = []
+
+[package.metadata.docs.rs]
+features = ["stats"]
+
 [lints.rust]
 warnings = "deny"
 

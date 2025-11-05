@@ -183,6 +183,8 @@ where
     // We use a Shared<InnerFuture<S>> to manage the sharing.
     future: Option<Shared<InnerFuture<S>>>,
     size_hint: SizeHint,
+    #[cfg(feature = "stats")]
+    stats: crate::stats::Stats,
 }
 
 impl<S> Clone for SharedStream<S>
@@ -191,10 +193,19 @@ where
     S::Item: Clone,
 {
     fn clone(&self) -> Self {
-        Self {
+        let s = Self {
             future: self.future.clone(),
             size_hint: self.size_hint,
+            #[cfg(feature = "stats")]
+            stats: self.stats.clone(),
+        };
+
+        #[cfg(feature = "stats")]
+        if self.future.is_some() {
+            s.stats.increment();
         }
+
+        s
     }
 }
 
@@ -225,10 +236,56 @@ where
     /// This method does not panic under normal circumstances.
     pub fn new(stream: S) -> Self {
         let size_hint = stream.size_hint();
-        SharedStream {
+
+        let s = Self {
             future: InnerFuture::new(stream).shared().into(),
             size_hint,
+            #[cfg(feature = "stats")]
+            stats: crate::stats::Stats::new(),
+        };
+
+        #[cfg(feature = "stats")]
+        if s.future.is_some() {
+            s.stats.increment();
         }
+
+        s
+    }
+
+    /// Returns the number of active clones of this stream, including the current instance.
+    ///
+    /// This method allows you to track how many shared consumers exist for the stream.
+    /// The count includes the current instance, so a value of 1 means there are no clones.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stream_shared::SharedStream;
+    /// use futures_util::stream;
+    ///
+    /// let stream = stream::iter(vec![1, 2, 3]);
+    /// let shared = SharedStream::new(stream);
+    /// let stats = shared.stats();
+    /// assert_eq!(stats.active_clones(), 1); // No clones yet
+    ///
+    /// let clone1 = shared.clone();
+    /// assert_eq!(stats.active_clones(), 2); // Original + 1 clone
+    ///
+    /// let clone2 = shared.clone();
+    /// assert_eq!(stats.active_clones(), 3); // Original + 2 clones
+    ///
+    /// drop(clone1);
+    /// assert_eq!(stats.active_clones(), 2); // Original + 1 clone remaining
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// This is a lightweight operation that simply returns the current reference count
+    /// of an internal `Arc`. It does not require any locking or synchronization.
+    #[cfg(feature = "stats")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stats")))]
+    pub fn stats(&self) -> crate::stats::Stats {
+        self.stats.clone()
     }
 }
 
@@ -255,6 +312,10 @@ where
             }
             Poll::Ready(None) => {
                 self.future.take();
+                #[cfg(feature = "stats")]
+                {
+                    self.stats.decrement();
+                }
                 Poll::Ready(None)
             }
         }
@@ -272,6 +333,22 @@ where
 {
     fn is_terminated(&self) -> bool {
         self.future.is_none()
+    }
+}
+
+impl<S> Drop for SharedStream<S>
+where
+    S: Stream + Unpin,
+    S::Item: Clone,
+{
+    fn drop(&mut self) {
+        // Decrement active-clone count when this handle is dropped.
+        if self.future.is_some() {
+            #[cfg(feature = "stats")]
+            {
+                self.stats.decrement();
+            }
+        }
     }
 }
 
@@ -675,5 +752,77 @@ mod tests {
         // Poll again - this should hit the None case and return Poll::Ready(None)
         let result = Pin::new(&mut inner_future).poll(&mut cx);
         assert!(matches!(result, Poll::Ready(None)));
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "stats")]
+    async fn test_stats() {
+        use futures_util::stream;
+        // Tests various `Stats` scenarios: clone, drop, exhaustion,
+        // empty-stream handling, and cloning after partial consumption.
+        // 1) Creation with non-empty stream
+        let stream = stream::iter(vec![1, 2, 3]);
+        let shared = SharedStream::new(stream);
+        let stats = shared.stats();
+
+        assert_eq!(stats.active_clones(), 1);
+
+        // clone increments
+        let clone1 = shared.clone();
+        assert_eq!(stats.active_clones(), 2);
+
+        // clone of clone increments
+        let clone2 = clone1.clone();
+        assert_eq!(stats.active_clones(), 3);
+
+        // dropping a clone decrements
+        drop(clone2);
+        assert_eq!(stats.active_clones(), 2);
+
+        // exhausting the original handle decrements its contribution
+        let _orig_collected: Vec<i32> = shared.collect().await;
+
+        // only clone1 remains
+        assert_eq!(stats.active_clones(), 1);
+
+        // dropping the last active clone brings the count to zero
+        drop(clone1);
+        assert_eq!(stats.active_clones(), 0);
+
+        // empty-stream case: wrapper is counted until polled/exhausted
+        let empty_stream = stream::iter(Vec::<i32>::new());
+        let shared_empty = SharedStream::new(empty_stream);
+        let stats_empty = shared_empty.stats();
+
+        // The stream wrapper exists and hasn't been polled yet, so it's counted.
+        assert_eq!(stats_empty.active_clones(), 1);
+
+        let clone_empty = shared_empty.clone();
+        assert_eq!(stats_empty.active_clones(), 2);
+        drop(clone_empty);
+        assert_eq!(stats_empty.active_clones(), 1);
+
+        // exhausting the wrapper clears the count
+        let _ = shared_empty.collect::<Vec<i32>>().await;
+        assert_eq!(stats_empty.active_clones(), 0);
+
+        // cloning after partial consumption
+        let stream2 = stream::iter(vec![10, 20, 30]);
+        let mut shared2 = SharedStream::new(stream2);
+        let stats2 = shared2.stats();
+        assert_eq!(stats2.active_clones(), 1);
+
+        // consume one item
+        let first = shared2.next().await;
+        assert_eq!(first, Some(10));
+
+        let clone_after = shared2.clone();
+        assert_eq!(stats2.active_clones(), 2);
+
+        drop(clone_after);
+        assert_eq!(stats2.active_clones(), 1);
+
+        let _ = shared2.collect::<Vec<i32>>().await;
+        assert_eq!(stats2.active_clones(), 0);
     }
 }
