@@ -278,10 +278,6 @@ where
     /// assert_eq!(stats.active_clones(), 2); // Original + 1 clone remaining
     /// ```
     ///
-    /// # Performance
-    ///
-    /// This is a lightweight operation that simply returns the current reference count
-    /// of an internal `Arc`. It does not require any locking or synchronization.
     #[cfg(feature = "stats")]
     #[cfg_attr(docsrs, doc(cfg(feature = "stats")))]
     pub fn stats(&self) -> crate::stats::Stats {
