@@ -49,6 +49,10 @@ async fn main() {
 - **Works with any `Unpin` stream**: Compatible with most async streams
 - **`!Unpin` support**: Use `Box::pin()` for streams that aren't `Unpin`
 
+## Optional features
+
+- `stats` — Enable runtime diagnostics.
+
 ## Performance Characteristics
 
 `SharedStream` is optimized for scenarios with multiple consumers. Benchmark results show:
