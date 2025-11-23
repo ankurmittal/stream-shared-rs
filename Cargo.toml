@@ -1,6 +1,6 @@
 [package]
 name = "stream_shared"
-version = "0.8.3"
+version = "0.8.4"
 edition = "2021"
 authors = ["Ankur Mittal"]
 license = "Apache-2.0"
@@ -24,13 +24,13 @@ features = ["stats"]
 warnings = "deny"
 
 [dependencies]
-futures-util = "0.3.31"
+futures-util = "0.3"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async", "tokio"] }
-futures = "0.3.31"
-static_assertions = "1.1"
-tokio = { version = "1.47", features = ["rt", "macros", "rt-multi-thread"] }
+futures = "0.3"
+static_assertions = "1"
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
 tokio-stream = "0.1"
 tokio-test = "0.4"
 
