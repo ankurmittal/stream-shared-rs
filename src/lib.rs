@@ -104,13 +104,12 @@
 //!
 //! `SharedStream` introduces some overhead compared to consuming a stream directly:
 //!
-//! - **Memory overhead**: Each item must be cloned for every active consumer
+//! - **Memory overhead**: Each item must be cloned for every active consumer (only when consumed)
 //! - **Synchronization cost**: Uses `Shared<Future>` internally, which has coordination overhead
 //! - **Item lifetime**: Items are kept in memory until all clones have consumed them
 //!
 //! For best performance:
-//! - Minimize the number of concurrent clones when possible
-//! - Prefer small, cheap-to-clone items (consider `Arc<T>` for large data)
+//! - Prefer cheap-to-clone small items or `Arc<T>` for large data
 //!
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -121,10 +120,6 @@ mod shared_stream;
 pub use ext::SharedStreamExt;
 pub use shared_stream::SharedStream;
 
-// Mark the `stats` module with doc(cfg) so documentation can show that the
-// items are behind the optional `stats` feature. `docs.rs` sets the `docsrs`
-// cfg automatically; for local `cargo doc` builds you can set
-// `RUSTDOCFLAGS="--cfg docsrs"` when generating docs.
 #[cfg_attr(docsrs, doc(cfg(feature = "stats")))]
 #[cfg(feature = "stats")]
 pub mod stats;
