@@ -1,6 +1,6 @@
 [package]
 name = "stream_shared"
-version = "0.8.4"
+version = "0.8.5"
 edition = "2021"
 authors = ["Ankur Mittal"]
 license = "Apache-2.0"

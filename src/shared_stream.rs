@@ -237,19 +237,12 @@ where
     pub fn new(stream: S) -> Self {
         let size_hint = stream.size_hint();
 
-        let s = Self {
+        Self {
             future: InnerFuture::new(stream).shared().into(),
             size_hint,
             #[cfg(feature = "stats")]
             stats: crate::stats::Stats::new(),
-        };
-
-        #[cfg(feature = "stats")]
-        if s.future.is_some() {
-            s.stats.increment();
         }
-
-        s
     }
 
     /// Returns the number of active clones of this stream, including the current instance.
