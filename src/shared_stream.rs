@@ -325,6 +325,7 @@ where
     }
 }
 
+#[cfg(feature = "stats")]
 impl<S> Drop for SharedStream<S>
 where
     S: Stream + Unpin,
@@ -333,10 +334,7 @@ where
     fn drop(&mut self) {
         // Decrement active-clone count when this handle is dropped.
         if self.future.is_some() {
-            #[cfg(feature = "stats")]
-            {
-                self.stats.decrement();
-            }
+            self.stats.decrement();
         }
     }
 }
