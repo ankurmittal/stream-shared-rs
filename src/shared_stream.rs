@@ -578,26 +578,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_cross_thread_sharing() {
-        use std::sync::Arc;
         use tokio::task;
 
         let data = vec![1, 2, 3, 4, 5];
         let stream = stream::iter(data.clone());
-        let shared_stream = Arc::new(SharedStream::new(stream));
+        let shared_stream = SharedStream::new(stream);
 
         // Clone and move to different threads
-        let stream1 = Arc::clone(&shared_stream);
-        let stream2 = Arc::clone(&shared_stream);
+        let stream1 = shared_stream.clone();
+        let stream2 = shared_stream.clone();
 
-        let handle1 = task::spawn(async move {
-            let cloned_stream = (*stream1).clone();
-            cloned_stream.collect::<Vec<i32>>().await
-        });
+        let handle1 = task::spawn(async move { stream1.collect::<Vec<i32>>().await });
 
-        let handle2 = task::spawn(async move {
-            let cloned_stream = (*stream2).clone();
-            cloned_stream.collect::<Vec<i32>>().await
-        });
+        let handle2 = task::spawn(async move { stream2.collect::<Vec<i32>>().await });
 
         let (result1, result2) = tokio::join!(handle1, handle2);
         assert_eq!(result1.unwrap(), data);
@@ -655,16 +648,14 @@ mod tests {
     async fn test_pending_future_behavior() {
         use futures_util::StreamExt;
         use std::pin::Pin;
-        use std::sync::{Arc, Mutex};
-        use std::task::{Context, Poll, Waker};
+        use std::task::{Context, Poll};
 
-        // Create a custom stream that returns Pending once, then Ready
+        // Create a custom stream that returns Pending once, then Ready.
         #[derive(Clone)]
         struct PendingOnceStream {
             data: Vec<i32>,
             index: usize,
-            has_returned_pending: Arc<Mutex<bool>>,
-            stored_waker: Arc<Mutex<Option<Waker>>>,
+            has_returned_pending: bool,
         }
 
         impl Stream for PendingOnceStream {
@@ -672,17 +663,11 @@ mod tests {
 
             fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
                 let this = self.get_mut();
-                let mut has_returned_pending = this.has_returned_pending.lock().unwrap();
 
-                // Return Pending exactly once to test the Pending code path
-                if !*has_returned_pending {
-                    *has_returned_pending = true;
-                    *this.stored_waker.lock().unwrap() = Some(cx.waker().clone());
-
-                    // Immediately wake the waker to continue execution
-                    let waker = cx.waker().clone();
-                    waker.wake();
-
+                // Return Pending exactly once, then wake to ensure a re-poll.
+                if !this.has_returned_pending {
+                    this.has_returned_pending = true;
+                    cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
 
@@ -697,14 +682,10 @@ mod tests {
             }
         }
 
-        let has_returned_pending = Arc::new(Mutex::new(false));
-        let stored_waker = Arc::new(Mutex::new(None));
-
         let pending_stream = PendingOnceStream {
             data: vec![100, 200],
             index: 0,
-            has_returned_pending: Arc::clone(&has_returned_pending),
-            stored_waker: Arc::clone(&stored_waker),
+            has_returned_pending: false,
         };
 
         let shared_stream = SharedStream::new(pending_stream);
@@ -712,9 +693,6 @@ mod tests {
         // This should succeed and exercise the Pending code path
         let result = shared_stream.collect::<Vec<i32>>().await;
         assert_eq!(result, vec![100, 200]);
-
-        // Verify that Pending was actually returned once
-        assert!(*has_returned_pending.lock().unwrap());
     }
 
     #[tokio::test]
