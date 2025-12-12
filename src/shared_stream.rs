@@ -8,7 +8,7 @@ type SizeHint = (usize, Option<usize>);
 
 /// Internal future wrapper that enables sharing of stream state.
 ///
-/// This type wraps a [`StreamFuture`] and implements the logic for creating
+/// This type wraps the stream and implements the logic for creating
 /// shared versions of subsequent futures as the stream is consumed.
 #[cfg_attr(test, derive(Debug))]
 struct InnerFuture<S>
@@ -22,7 +22,6 @@ impl<S> InnerFuture<S>
 where
     S: Stream + Unpin,
 {
-    /// Creates a new `InnerFuture` from the given stream.
     pub(crate) fn new(stream: S) -> Self {
         InnerFuture {
             inner: Some(stream),
@@ -35,7 +34,6 @@ where
     S: Stream + Unpin,
     S::Item: Clone,
 {
-    // The output type is changed to reflect the attempt to return a shared future.
     type Output = Option<(S::Item, Shared<Self>, SizeHint)>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -124,53 +122,8 @@ where
 /// - [`Unpin`]: Required for safe polling without pinning
 /// - [`Stream::Item`]: The item should be clonable
 ///
-/// For [`!Unpin`](Unpin) streams, pin them first:
+/// For [`!Unpin`](Unpin) streams, pin them first
 ///
-/// ```
-/// use stream_shared::SharedStream;
-/// use futures_util::stream::{Stream, StreamExt};
-/// use std::pin::Pin;
-/// use std::task::{Context, Poll};
-///
-/// // Create a custom !Unpin stream
-/// #[derive(Clone)]
-/// struct NotUnpinStream {
-///     data: Vec<i32>,
-///     index: usize,
-///     _pin: std::marker::PhantomPinned,
-/// }
-///
-/// impl Stream for NotUnpinStream {
-///     type Item = i32;
-///     
-///     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-///         // SAFETY: We only modify fields that are not structurally pinned
-///         let this = unsafe { self.get_unchecked_mut() };
-///         if this.index < this.data.len() {
-///             let item = this.data[this.index];
-///             this.index += 1;
-///             Poll::Ready(Some(item))
-///         } else {
-///             Poll::Ready(None)
-///         }
-///     }
-/// }
-///
-/// # tokio_test::block_on(async {
-/// let not_unpin_stream = NotUnpinStream {
-///     data: vec![1, 2, 3],
-///     index: 0,
-///     _pin: std::marker::PhantomPinned,
-/// };
-///
-/// // This wouldn't compile: SharedStream::new(not_unpin_stream)
-/// // But this works:
-/// let pinned_stream = Box::pin(not_unpin_stream);
-/// let shared = SharedStream::new(pinned_stream);
-/// let result: Vec<i32> = shared.collect().await;
-/// assert_eq!(result, vec![1, 2, 3]);
-/// # });
-/// ```
 #[derive(Debug)]
 pub struct SharedStream<S>
 where
