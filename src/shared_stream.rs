@@ -1,8 +1,8 @@
 use futures_util::future::{FutureExt, Shared};
-use futures_util::stream::{FusedStream, Stream, StreamExt, StreamFuture};
+use futures_util::stream::{FusedStream, Stream};
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 type SizeHint = (usize, Option<usize>);
 
@@ -15,7 +15,7 @@ struct InnerFuture<S>
 where
     S: Stream + Unpin,
 {
-    inner: Option<StreamFuture<S>>,
+    inner: Option<S>,
 }
 
 impl<S> InnerFuture<S>
@@ -25,7 +25,7 @@ where
     /// Creates a new `InnerFuture` from the given stream.
     pub(crate) fn new(stream: S) -> Self {
         InnerFuture {
-            inner: Some(stream.into_future()),
+            inner: Some(stream),
         }
     }
 }
@@ -39,23 +39,21 @@ where
     type Output = Option<(S::Item, Shared<Self>, SizeHint)>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let inner_future = match self.inner.as_mut() {
+        let stream = match self.inner.as_mut() {
             Some(f) => Pin::new(f),
             None => return Poll::Ready(None),
         };
 
-        match inner_future.poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready((Some(item), stream)) => {
+        let result = ready!(stream.poll_next(cx));
+
+        let stream = self.inner.take().unwrap();
+        match result {
+            Some(item) => {
                 let size_hint = stream.size_hint();
                 let next_shared_future = InnerFuture::new(stream).shared();
-                self.inner.take();
                 Poll::Ready(Some((item, next_shared_future, size_hint)))
             }
-            Poll::Ready((None, _stream)) => {
-                self.inner.take();
-                Poll::Ready(None)
-            }
+            None => Poll::Ready(None),
         }
     }
 }
@@ -231,9 +229,6 @@ where
     /// let shared_stream = SharedStream::new(stream);
     /// ```
     ///
-    /// # Panics
-    ///
-    /// This method does not panic under normal circumstances.
     pub fn new(stream: S) -> Self {
         let size_hint = stream.size_hint();
 
@@ -342,6 +337,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
     use futures_util::stream;
 
     #[tokio::test]
