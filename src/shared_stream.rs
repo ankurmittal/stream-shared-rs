@@ -229,9 +229,6 @@ where
     /// let shared_stream = SharedStream::new(stream);
     /// ```
     ///
-    /// # Panics
-    ///
-    /// This method does not panic under normal circumstances.
     pub fn new(stream: S) -> Self {
         let size_hint = stream.size_hint();
 
