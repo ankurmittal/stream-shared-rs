@@ -4,7 +4,6 @@
 [![Documentation](https://docs.rs/stream_shared/badge.svg)](https://docs.rs/stream_shared)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![codecov](https://codecov.io/gh/ankurmittal/stream-shared-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/ankurmittal/stream-shared-rs)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ankurmittal/stream-shared-rs)
 
 A Rust library for creating shareable streams that can be cloned and consumed by multiple tasks.
 
@@ -58,7 +57,7 @@ async fn main() {
 `SharedStream` is optimized for scenarios with multiple consumers. Benchmark results show:
 
 ### **Multi-Consumer Performance (5 consumers)**
-- **15-50% faster** than channel-based fan-out for small-medium datasets (1K-10K items)
+- **15-50% faster** than channel-based fan-out for all datasets (1K-10K items)
 - **More consistent performance** across I/O vs memory-bound workloads
 - **Better scaling** with I/O-intensive streams due to reduced context switching
 
@@ -69,14 +68,8 @@ async fn main() {
 
 ### **When to Use SharedStream**
 - ✅ **Multiple consumers** (2+ consumers sharing the same stream)
-- ✅ **I/O-bound workloads** (network streams, file streams) - faster at all dataset sizes
-- ✅ **Small to medium datasets** with any workload type
+- ✅ **I/O-bound workloads** (network streams, file streams)
 - ✅ **Consistent performance requirements**
-
-### **When to Consider Alternatives**
-- ❌ **Single consumer only** (use the original stream directly)
-- ❌ **Very large pure memory datasets** (100K+ items, channels ~25% faster for memory-only)
-- ❌ **Ultra-low latency requirements** (direct consumption is always fastest)
 
 *Benchmarks run on 1KB payloads with 5 consumers. See `benches/` for full benchmark code.*
 
