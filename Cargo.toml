@@ -1,6 +1,6 @@
 [package]
 name = "stream_shared"
-version = "0.8.6"
+version = "0.8.7"
 edition = "2024"
 authors = ["Ankur Mittal"]
 license = "Apache-2.0"
@@ -10,7 +10,7 @@ repository = "https://github.com/ankurmittal/stream-shared-rs"
 documentation = "https://docs.rs/stream_shared"
 keywords = ["stream", "async", "clone", "shared"]
 categories = ["asynchronous", "data-structures"]
-exclude = ["target/", ".git/", ".gitignore"]
+exclude = ["target/", ".git/", ".gitignore", "/.github/", "codecov.yml"]
 
 [features]
 # Optional runtime stats (active clone counts). Disabled by default.
