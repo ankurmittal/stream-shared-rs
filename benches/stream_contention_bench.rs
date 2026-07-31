@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use futures_util::{future::join_all, stream::StreamExt};
 use std::time::Duration;
 use stream_shared::{SharedStream, SharedStreamExt};
@@ -6,8 +6,8 @@ use tokio::runtime::Runtime;
 
 mod utils;
 use utils::{
-    generate_in_memory_stream, generate_simulated_io_stream, run_channel_fan_out, ArcData,
-    NUM_CONSUMERS,
+    ArcData, NUM_CONSUMERS, generate_in_memory_stream, generate_simulated_io_stream,
+    run_channel_fan_out,
 };
 
 // --- Benchmark Runner Function ---

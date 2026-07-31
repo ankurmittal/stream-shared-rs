@@ -2,7 +2,7 @@ use futures_util::future::{FutureExt, Shared};
 use futures_util::stream::{FusedStream, Stream};
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 type SizeHint = (usize, Option<usize>);
 
@@ -548,8 +548,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_after_stream_exhausted() {
-        use futures_util::stream::FusedStream;
         use futures_util::StreamExt;
+        use futures_util::stream::FusedStream;
 
         let data = vec![1, 2, 3];
         let stream = stream::iter(data.clone());

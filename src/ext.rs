@@ -45,8 +45,8 @@ impl<S> SharedStreamExt for S where S: Stream {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::stream;
     use futures_util::StreamExt as FuturesStreamExt;
+    use futures_util::stream;
 
     #[tokio::test]
     async fn test_into_shared_trait_works() {

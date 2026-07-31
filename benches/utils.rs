@@ -1,5 +1,5 @@
-use futures::channel::mpsc;
 use futures::SinkExt;
+use futures::channel::mpsc;
 use futures_util::stream::{Stream, StreamExt};
 use std::pin::Pin;
 use std::sync::Arc;
