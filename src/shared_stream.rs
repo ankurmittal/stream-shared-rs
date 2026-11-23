@@ -273,7 +273,6 @@ where
     }
 }
 
-#[cfg(feature = "stats")]
 impl<S> Drop for SharedStream<S>
 where
     S: Stream + Unpin,
@@ -281,8 +280,25 @@ where
 {
     fn drop(&mut self) {
         // Decrement active-clone count when this handle is dropped.
+        #[cfg(feature = "stats")]
         if self.future.is_some() {
             self.stats.decrement();
+        }
+
+        // Each item's link owns the next link.
+        // Dropping a long chain at once would recurse once per item and can overflow the stack.
+        // Holding the next link while this one drops keeps each drop to one frame.
+        // `peek` panics on a link whose stream panicked while producing it.
+        // That link has no next link, so the walk stops there instead of panicking in `drop`.
+        let mut link = self.future.take();
+        while let Some(current) = link {
+            link = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                current
+                    .peek()
+                    .and_then(|output| output.as_ref().map(|(_, next, _)| next.clone()))
+            }))
+            .ok()
+            .flatten();
         }
     }
 }
@@ -738,5 +754,84 @@ mod tests {
 
         let _ = shared2.collect::<Vec<i32>>().await;
         assert_eq!(stats2.active_clones(), 0);
+    }
+
+    /// Runs `f` on a thread with a 256 KiB stack.
+    fn on_small_stack(f: impl FnOnce() + Send + 'static) {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024)
+            .spawn(f)
+            .expect("spawns a thread")
+            .join()
+            .expect("the thread did not panic");
+    }
+
+    #[test]
+    fn dropping_a_long_chain_does_not_overflow_the_stack() {
+        on_small_stack(|| {
+            let head = SharedStream::new(stream::iter(0..200_000));
+            let reader = head.clone();
+
+            let read = tokio_test::block_on(reader.count());
+
+            assert_eq!(read, 200_000);
+            drop(head);
+        });
+    }
+
+    #[test]
+    fn concurrent_drops_of_a_long_chain_do_not_overflow_the_stack() {
+        let head = SharedStream::new(stream::iter(0..200_000));
+        let reader = head.clone();
+        let read = tokio_test::block_on(reader.count());
+        assert_eq!(read, 200_000);
+
+        let other = head.clone();
+        let start = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let drop_after_start =
+            |shared: SharedStream<_>, start: std::sync::Arc<std::sync::Barrier>| {
+                std::thread::Builder::new()
+                    .stack_size(256 * 1024)
+                    .spawn(move || {
+                        start.wait();
+                        drop(shared);
+                    })
+                    .expect("spawns a thread")
+            };
+        let first = drop_after_start(head, start.clone());
+        let second = drop_after_start(other, start);
+
+        first.join().expect("the thread did not panic");
+        second.join().expect("the thread did not panic");
+    }
+
+    /// A stream whose first poll panics.
+    fn panicking_stream() -> impl Stream<Item = i32> + Unpin {
+        stream::poll_fn(|_| panic!("stream panicked"))
+    }
+
+    #[test]
+    fn dropping_a_clone_after_the_stream_panicked_does_not_panic() {
+        let shared = SharedStream::new(panicking_stream());
+        let other = shared.clone();
+
+        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            tokio_test::block_on(shared.collect::<Vec<i32>>())
+        }));
+
+        assert!(read.is_err());
+        drop(other);
+    }
+
+    #[test]
+    fn dropping_a_clone_while_the_stream_panic_unwinds_does_not_abort() {
+        let shared = SharedStream::new(panicking_stream());
+
+        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _other = shared.clone();
+            tokio_test::block_on(shared.collect::<Vec<i32>>())
+        }));
+
+        assert!(read.is_err());
     }
 }
